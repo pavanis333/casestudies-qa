@@ -8,7 +8,9 @@ A localized, offline-first React application designed to help UPSC aspirants pre
 - **Practice Mode**: Test your ethical decision-making by hiding model answers until you're ready.
 - **Flashcards**: Randomly generated dilemma scenarios for quick recall.
 - **Progress Tracking**: Tracks "read" and "practiced" cases using LocalStorage.
+- **Data Management**: Export and Import your progress to keep your data safe.
 - **Favorites**: Bookmark difficult cases for later review.
+- **Advanced Search & Filters**: Filter by Year and Category, with search term highlighting.
 - **Responsive Design**: Modern, glassmorphism-inspired UI that works on all devices.
 
 ## 🛠️ Tech Stack
@@ -46,7 +48,7 @@ Access the app at `http://localhost:5173`.
 
 ### 3. Updating Case Study Data
 
-The application loads data from `src/data.json`. This JSON is generated/enriched by extracting text from the official `casestudies.pdf`.
+The application loads data from `src/data.json`. This JSON is populated by extracting text from the official `casestudies.pdf`.
 
 If you have a new `casestudies.pdf` or want to refine the text extraction:
 
@@ -57,16 +59,10 @@ If you have a new `casestudies.pdf` or want to refine the text extraction:
     uv pip install pdfplumber
     ```
 
-2.  **Extract Text**:
-    Run the extraction script to convert the PDF into a raw text file (`extracted_text.txt`).
+2.  **Run the Import Pipeline**:
+    We have a comprehensive script that extracts text, parses cases, and updates the JSON database.
     ```bash
-    python extract_pdf.py
-    ```
-
-3.  **Update JSON**:
-    Run the update script to parse the text and enrich `src/data.json` with full "Scenario" descriptions.
-    ```bash
-    python update_scenarios.py
+    python import_all_cases.py
     ```
 
 ### 4. Project Structure
@@ -75,7 +71,7 @@ If you have a new `casestudies.pdf` or want to refine the text extraction:
 - `src/App.css`: Component-specific styles.
 - `src/index.css`: Global design system (variables, reset, typography).
 - `src/data.json`: The source of truth for all case studies.
-- `update_scenarios.py`: Logic to map extracted PDF text to the JSON structure.
+- `import_all_cases.py`: The master script for PDF data extraction and JSON population.
 
 ### 5. Building for Production
 

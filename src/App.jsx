@@ -28,8 +28,74 @@ function App() {
     localStorage.setItem('upsc_favorites', JSON.stringify(favorites))
   }, [favorites])
 
+  const [selectedYear, setSelectedYear] = useState('All')
+  const [selectedCategory, setSelectedCategory] = useState('All')
+  const [showSettings, setShowSettings] = useState(false)
+
+  // Extract unique years and categories
+  const years = useMemo(() => ['All', ...new Set(data.map(d => d.year))].sort((a, b) => b - a), [])
+  const categories = useMemo(() => ['All', ...new Set(data.map(d => d.category))].sort(), [])
+
+  useEffect(() => {
+    localStorage.setItem('upsc_progress', JSON.stringify(progress))
+  }, [progress])
+
+  useEffect(() => {
+    localStorage.setItem('upsc_favorites', JSON.stringify(favorites))
+  }, [favorites])
+
+  const exportData = () => {
+    const data = {
+      progress: JSON.parse(localStorage.getItem('upsc_progress') || '{}'),
+      favorites: JSON.parse(localStorage.getItem('upsc_favorites') || '[]')
+    }
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `upsc-ethics-progress-${new Date().toISOString().split('T')[0]}.json`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
+  const importData = (event) => {
+    const file = event.target.files[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      try {
+        const parsed = JSON.parse(e.target.result)
+        if (parsed.progress && parsed.favorites) {
+          if (confirm('This will overwrite your current progress. Continue?')) {
+            setProgress(parsed.progress)
+            setFavorites(parsed.favorites)
+            setShowSettings(false)
+            alert('Data imported successfully!')
+          }
+        } else {
+          alert('Invalid data file format.')
+        }
+      } catch (err) {
+        alert('Error parsing file.')
+      }
+    }
+    reader.readAsText(file)
+  }
+
   const caseStudies = useMemo(() => {
     let filtered = data
+
+    if (selectedYear !== 'All') {
+      filtered = filtered.filter(cs => cs.year === parseInt(selectedYear) || cs.year === selectedYear)
+    }
+
+    if (selectedCategory !== 'All') {
+      filtered = filtered.filter(cs => cs.category === selectedCategory)
+    }
+
     if (searchQuery) {
       const query = searchQuery.toLowerCase()
       filtered = filtered.filter(cs =>
@@ -39,7 +105,15 @@ function App() {
       )
     }
     return filtered
-  }, [searchQuery])
+  }, [searchQuery, selectedYear, selectedCategory])
+
+  const highlightText = (text, query) => {
+    if (!query) return text
+    const parts = text.split(new RegExp(`(${query})`, 'gi'))
+    return parts.map((part, i) =>
+      part.toLowerCase() === query.toLowerCase() ? <mark key={i}>{part}</mark> : part
+    )
+  }
 
   useEffect(() => {
     if (activeTab === 'flashcards') {
@@ -133,16 +207,17 @@ function App() {
             {stats.read}/{stats.total} Cases Read
           </div>
           <button
-            onClick={resetProgress}
+            onClick={() => setShowSettings(true)}
             style={{
               background: 'none',
-              border: '1px solid var(--border)',
-              color: 'var(--text-muted)',
-              fontSize: '0.8rem',
-              padding: '0.4rem 0.8rem'
+              border: 'none',
+              fontSize: '1.5rem',
+              cursor: 'pointer',
+              padding: '0.2rem'
             }}
+            title="Settings"
           >
-            Reset Progress
+            ⚙️
           </button>
         </div>
       </nav>
@@ -161,56 +236,88 @@ function App() {
           </p>
 
           {activeTab !== 'flashcards' && (
-            <div style={{ position: 'relative' }}>
-              <input
-                type="text"
-                className="search-bar"
-                placeholder="Search by title, category, or ethics keywords..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-              {searchQuery && (
-                <button
-                  style={{ position: 'absolute', right: '1.5rem', top: '1.2rem', color: 'var(--text-muted)' }}
-                  onClick={() => setSearchQuery('')}
+            <div className="search-container">
+              <div className="filters">
+                <select
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(e.target.value)}
+                  className="filter-select"
                 >
-                  Clear
-                </button>
-              )}
+                  {years.map(y => <option key={y} value={y}>{y === 'All' ? 'All Years' : y}</option>)}
+                </select>
+                <select
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  className="filter-select"
+                >
+                  {categories.map(c => <option key={c} value={c}>{c === 'All' ? 'All Categories' : c}</option>)}
+                </select>
+              </div>
+              <div style={{ position: 'relative', flex: 1 }}>
+                <input
+                  type="text"
+                  className="search-bar"
+                  placeholder="Search by title, category, or ethics keywords..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+                {searchQuery && (
+                  <button
+                    style={{ position: 'absolute', right: '1.5rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}
+                    onClick={() => setSearchQuery('')}
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
             </div>
           )}
         </header>
 
         {(activeTab === 'library' || activeTab === 'practice') && (
           <div className="case-grid">
-            {caseStudies.map(cs => (
-              <div
-                key={cs.id}
-                className={`case-card ${progress[cs.id]?.read ? 'is-read' : ''}`}
-                onClick={() => openCase(cs)}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <span className="case-tag">{cs.category}</span>
-                  <button
-                    className={`fav-btn ${favorites.includes(cs.id) ? 'active' : ''}`}
-                    onClick={(e) => toggleFavorite(e, cs.id)}
-                  >
-                    {favorites.includes(cs.id) ? '★' : '☆'}
-                  </button>
-                </div>
-                <h2 className="case-title">{cs.title}</h2>
-                <p className="case-scenario-preview">{cs.scenario}</p>
-                <div className="case-footer">
-                  <div className="case-year">
-                    {cs.year} • #{cs.case_number}
-                    {progress[cs.id]?.practiced && <span className="status-dot">✓ Practiced</span>}
-                  </div>
-                  <button className="btn-primary">
-                    {activeTab === 'library' ? 'Analysis' : 'Practice'}
-                  </button>
-                </div>
+            {caseStudies.length === 0 ? (
+              <div className="no-results">
+                <h3>No cases found</h3>
+                <p>Try adjusting your search or filters.</p>
+                <button
+                  className="btn-primary"
+                  onClick={() => { setSearchQuery(''); setSelectedYear('All'); setSelectedCategory('All'); }}
+                  style={{ marginTop: '1rem' }}
+                >
+                  Clear All Filters
+                </button>
               </div>
-            ))}
+            ) : (
+              caseStudies.map(cs => (
+                <div
+                  key={cs.id}
+                  className={`case-card ${progress[cs.id]?.read ? 'is-read' : ''}`}
+                  onClick={() => openCase(cs)}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <span className="case-tag">{highlightText(cs.category, searchQuery)}</span>
+                    <button
+                      className={`fav-btn ${favorites.includes(cs.id) ? 'active' : ''}`}
+                      onClick={(e) => toggleFavorite(e, cs.id)}
+                    >
+                      {favorites.includes(cs.id) ? '★' : '☆'}
+                    </button>
+                  </div>
+                  <h2 className="case-title">{highlightText(cs.title, searchQuery)}</h2>
+                  <p className="case-scenario-preview">{highlightText(cs.scenario, searchQuery)}</p>
+                  <div className="case-footer">
+                    <div className="case-year">
+                      {cs.year} • #{cs.case_number}
+                      {progress[cs.id]?.practiced && <span className="status-dot">✓ Practiced</span>}
+                    </div>
+                    <button className="btn-primary">
+                      {activeTab === 'library' ? 'Analysis' : 'Practice'}
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         )}
 
@@ -241,6 +348,45 @@ function App() {
           </div>
         )}
       </main>
+
+      {/* Settings Modal */}
+      {showSettings && (
+        <div className="modal-overlay" onClick={() => setShowSettings(false)}>
+          <div className="modal-content animate-fade-in" style={{ maxWidth: '500px' }} onClick={e => e.stopPropagation()}>
+            <button className="close-btn" onClick={() => setShowSettings(false)}>×</button>
+            <h2 style={{ marginBottom: '1.5rem' }}>Settings & Data</h2>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <button className="btn-primary" onClick={exportData} style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem' }}>
+                ⬇️ Export Progress Data
+              </button>
+
+              <label className="btn-primary" style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', cursor: 'pointer', background: 'var(--card-bg)', color: 'var(--text)', border: '1px solid var(--border)' }}>
+                ⬆️ Import Progress Data
+                <input type="file" accept=".json" onChange={importData} style={{ display: 'none' }} />
+              </label>
+
+              <hr style={{ margin: '1rem 0', borderColor: 'var(--border)' }} />
+
+              <button
+                onClick={resetProgress}
+                style={{
+                  background: '#ef4444',
+                  color: 'white',
+                  padding: '0.8rem',
+                  borderRadius: '8px',
+                  fontWeight: 600
+                }}
+              >
+                Reset All Progress
+              </button>
+            </div>
+            <p style={{ marginTop: '1.5rem', fontSize: '0.85rem', color: 'var(--text-muted)', textAlign: 'center' }}>
+              Export your data to save a backup or transfer to another device.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Case Detail Modal */}
       {selectedCase && (
